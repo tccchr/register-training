@@ -417,7 +417,7 @@ export default function ApproverPortal({ adminMode = false }) {
               ออกจากระบบ
             </button>
           </div>
-          <div className="mobile-tab-rail flex space-x-4 sm:space-x-8 overflow-x-auto -mb-px">
+          <div className="mobile-tab-rail flex overflow-x-auto -mb-px">
             <NavTab to="/portal" current={location.pathname} label="หลักสูตรของฉัน" />
             <NavTab to="/calendar" current={location.pathname} label="ปฏิทินอบรม" />
             <NavTab to="/approve" current={location.pathname} label="จัดการพนักงานในสายงาน" badge={adminMode ? 0 : totalPending} />

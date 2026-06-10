@@ -760,8 +760,8 @@ const handleDeleteCourse = (course) => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="overflow-auto p-0 flex-1">
-              <table className="w-full text-sm text-left">
+            <div className="app-table-wrap flex-1">
+              <table className="app-table text-sm text-left min-w-[760px]">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 shadow-sm">
                   <tr>
                     <th className="px-6 py-3 font-medium">รหัสพนักงาน</th>
@@ -1021,8 +1021,8 @@ const handleDeleteCourse = (course) => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="overflow-auto p-0 flex-1">
-              <table className="w-full text-sm text-left">
+            <div className="app-table-wrap flex-1">
+              <table className="app-table text-sm text-left min-w-[820px]">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 shadow-sm">
                   <tr>
                     <th className="px-6 py-3 font-medium">เวลาที่บันทึก</th>

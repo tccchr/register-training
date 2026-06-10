@@ -343,7 +343,7 @@ export default function UserCalendar() {
               ออกจากระบบ
             </button>
           </div>
-          <div className="mobile-tab-rail flex space-x-4 sm:space-x-8 overflow-x-auto -mb-px">
+          <div className="mobile-tab-rail flex overflow-x-auto -mb-px">
             <NavTab to="/portal" current={location.pathname} label="หลักสูตรของฉัน" badge={unselectedCount} />
             <NavTab to="/calendar" current={location.pathname} label="ปฏิทินอบรม" />
             {isApprover && <NavTab to="/approve" current={location.pathname} label="จัดการพนักงานในสายงาน" badge={pendingApprovalCount} />}

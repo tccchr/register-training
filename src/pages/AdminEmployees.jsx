@@ -525,8 +525,8 @@ export default function AdminEmployees() {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="app-table-wrap">
+            <table className="app-table text-left min-w-[980px]">
               <thead>
                 <tr className="bg-gray-50 text-gray-600 text-sm border-y border-gray-200">
                   <th scope="col" className="py-3 px-4 font-medium">รหัสพนักงาน</th>

@@ -494,7 +494,7 @@ export default function EmployeePortal() {
             </div>
             <button onClick={handleLogout} className="text-xs sm:text-sm font-medium text-gray-500 hover:text-gray-900 flex-shrink-0 min-h-[44px] px-2">ออกจากระบบ</button>
           </div>
-          <div className="mobile-tab-rail flex space-x-4 sm:space-x-8 overflow-x-auto -mb-px">
+          <div className="mobile-tab-rail flex overflow-x-auto -mb-px">
             <NavTab to="/portal" current={location.pathname} label="หลักสูตรของฉัน" badge={unselectedCount} />
             <NavTab to="/calendar" current={location.pathname} label="ปฏิทินอบรม" />
             {isApprover && <NavTab to="/approve" current={location.pathname} label="จัดการพนักงานในสายงาน" badge={pendingApprovalCount} />}

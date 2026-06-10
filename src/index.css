@@ -30,6 +30,7 @@
     --radius-card: 18px;
     --radius-control: 11px;
     --space-page-x: clamp(1rem, 2vw, 1.5rem);
+    --modal-overlay: rgba(18, 24, 38, 0.58);
     --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
     --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -104,6 +105,10 @@
   select,
   textarea {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  * {
+    min-width: 0;
   }
 
   input,
@@ -267,7 +272,6 @@
     transition-timing-function: var(--ease-out-quint) !important;
     overflow: clip;
     isolation: isolate;
-    contain: layout paint style;
   }
 
   .app-header h1,
@@ -339,6 +343,25 @@
     border-radius: var(--radius-card);
     animation: motion-fade-y 240ms var(--ease-out-quint) both;
     overflow: clip;
+  }
+
+  .app-table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(102, 112, 133, 0.28) transparent;
+  }
+
+  .app-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+
+  .app-table th,
+  .app-table td {
+    vertical-align: top;
+    overflow-wrap: anywhere;
   }
 
   .premium-login-card {
@@ -426,6 +449,7 @@
 
   .fixed.inset-0[class*="bg-gray-900"],
   .fixed.inset-0[class*="bg-black"] {
+    background-color: var(--modal-overlay) !important;
     animation: motion-overlay-in 140ms var(--ease-out-quart) both;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -436,7 +460,6 @@
   .fixed.inset-0[class*="bg-black"] > div,
   .animate-in {
     animation: motion-fade-y 180ms var(--ease-out-quart) both;
-    contain: layout paint style;
     will-change: transform, opacity;
   }
 
@@ -460,6 +483,11 @@
     inset: 0;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.56), transparent);
     animation: motion-skeleton 1200ms linear infinite;
+  }
+
+  .line-clamp-2,
+  .line-clamp-3 {
+    overflow-wrap: anywhere;
   }
 
   .loading-state {
