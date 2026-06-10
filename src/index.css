@@ -249,21 +249,11 @@
     background: color-mix(in oklch, var(--canvas-parchment) 86%, white 14%) !important;
     border-color: rgba(0, 0, 0, 0.08) !important;
     box-shadow: none !important;
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
     animation: motion-fade-down 260ms var(--ease-out-expo) both;
   }
 
   .app-header::after {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    bottom: -1px;
-    height: 2px;
-    background: var(--brand-yellow);
-    opacity: 0.9;
-    transform-origin: left;
-    animation: motion-scale-x 420ms var(--ease-out-expo) 80ms both;
+    content: none;
   }
 
   .app-card {
@@ -395,6 +385,18 @@
     opacity: 0.74;
   }
 
+  .nav-tab {
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+
+  .nav-tab[aria-current="page"] {
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand) 12%, transparent);
+  }
+
+  .nav-tab:hover {
+    transform: translate3d(0, -1px, 0);
+  }
+
   .roster-scroll {
     overscroll-behavior: contain;
     contain: layout paint style;
@@ -424,13 +426,18 @@
 
   .fixed.inset-0[class*="bg-gray-900"],
   .fixed.inset-0[class*="bg-black"] {
-    animation: motion-overlay-in 220ms var(--ease-out-quart) both;
+    animation: motion-overlay-in 140ms var(--ease-out-quart) both;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    will-change: opacity;
   }
 
   .fixed.inset-0[class*="bg-gray-900"] > div,
   .fixed.inset-0[class*="bg-black"] > div,
   .animate-in {
-    animation: motion-scale-in 260ms var(--ease-out-expo) both;
+    animation: motion-fade-y 180ms var(--ease-out-quart) both;
+    contain: layout paint style;
+    will-change: transform, opacity;
   }
 
   .animate-in.fade-in {
@@ -559,8 +566,6 @@
       padding: 0.75rem;
       background: rgba(247, 249, 252, 0.94);
       border-top: 1px solid rgba(217, 225, 234, 0.88);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
     }
 
     .fixed.inset-0[class*="bg-gray-900"] > div,
@@ -805,6 +810,14 @@
     transition-duration: 220ms !important;
     transition-property: opacity !important;
     transition-timing-function: var(--ease-out-quart) !important;
+  }
+
+  .backdrop-blur,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   .motion-fade-y {

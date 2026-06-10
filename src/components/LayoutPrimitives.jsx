@@ -32,13 +32,14 @@ export function NavTab({ to, current, label, badge }) {
   return (
     <Link
       to={to}
-      className={`inline-flex items-center min-h-[44px] px-1 pb-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap relative ${
-        isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+      aria-current={isActive ? 'page' : undefined}
+      className={`nav-tab inline-flex items-center justify-center min-h-[40px] px-4 py-2 mb-2 text-sm font-semibold rounded-full border transition-colors whitespace-nowrap relative ${
+        isActive ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-transparent border-transparent text-gray-500 hover:bg-white/70 hover:border-gray-200 hover:text-gray-800'
       }`}
     >
       {label}
       {badge > 0 && (
-        <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-red-500 text-white">
+        <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-red-500 text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
