@@ -26,6 +26,41 @@ export function EmptyState({ message, action, className = 'py-12' }) {
   );
 }
 
+const toneStyles = {
+  blue: 'bg-blue-50 text-blue-700 border-blue-100',
+  green: 'bg-green-50 text-green-700 border-green-100',
+  amber: 'bg-amber-50 text-amber-700 border-amber-100',
+  red: 'bg-red-50 text-red-700 border-red-100',
+  gray: 'bg-gray-50 text-gray-700 border-gray-100'
+};
+
+export function ActionSummary({ eyebrow = 'งานที่ต้องทำ', title, description, items = [], action, className = '' }) {
+  return (
+    <section className={`app-panel p-4 sm:p-5 ${className}`} aria-label={eyebrow}>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-blue-700">{eyebrow}</p>
+          <h3 className="mt-1 text-lg sm:text-xl font-bold text-gray-950">{title}</h3>
+          {description && <p className="mt-1 text-sm text-gray-500 max-w-3xl">{description}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+
+      {items.length > 0 && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {items.map((item) => (
+            <div key={item.label} className={`rounded-xl border px-4 py-3 ${toneStyles[item.tone] || toneStyles.gray}`}>
+              <p className="text-2xl font-bold tabular-nums">{item.value}</p>
+              <p className="mt-1 text-sm font-semibold">{item.label}</p>
+              {item.hint && <p className="mt-1 text-xs opacity-80">{item.hint}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function NavTab({ to, current, label, badge }) {
   const isActive = current === to;
 

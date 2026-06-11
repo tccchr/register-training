@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import ConfirmModal from '../components/ConfirmModal';
 import FormattedDate from '../components/FormattedDate';
 import BrandLogo from '../components/BrandLogo';
-import { EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
+import { ActionSummary, EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
 import { canManageCourse, getManageableParticipants } from '../utils/approvalScope';
 import { normalizeUrl } from '../utils/url';
 import MyReservationModal from '../components/MyReservationModal';
@@ -324,6 +324,15 @@ export default function EmployeePortal() {
     .sort((a, b) => getClosingSortValue(a) - getClosingSortValue(b));
   const bookedCourses = orderedCourses.filter(course => bookedState[course.id]);
   const unbookedCourses = orderedCourses.filter(course => !bookedState[course.id] && !isCourseClosed(course));
+  const selfSelectableUnbooked = unbookedCourses.filter(course => course.selection_mode !== 'approver');
+  const waitingForApproverCount = unbookedCourses.length - selfSelectableUnbooked.length;
+  const dueSoonCount = selfSelectableUnbooked.filter(course => getClosingSortValue(course) <= 7 * 24 * 60 * 60 * 1000).length;
+  const lockedBookedCount = bookedCourses.filter(course => {
+    const booking = bookedState[course.id];
+    const currentClass = course.classes.find(cls => cls.id === booking?.classId);
+    return currentClass && isReservationLocked(course, currentClass);
+  }).length;
+  const nextActionCourse = selfSelectableUnbooked[0];
   const courseSections = [
     { key: 'booked', title: 'ลงทะเบียนแล้ว', courses: bookedCourses },
     { key: 'unbooked', title: 'ยังไม่ได้ลงทะเบียน', courses: unbookedCourses }
@@ -511,6 +520,30 @@ export default function EmployeePortal() {
           title="รายการฝึกอบรมของคุณ"
           description="เลือกหลักสูตรที่ต้องเข้าอบรม ดูคลาสที่หัวหน้ากำหนดให้ หรือจัดการคลาสที่คุณลงทะเบียนไว้"
         />
+        {!loading && courses.length > 0 && (
+          <ActionSummary
+            className="mb-7 sm:mb-9"
+            title={unselectedCount > 0 ? 'มีหลักสูตรที่รอคุณเลือกคลาส' : 'ตอนนี้ไม่มีงานที่ต้องเลือกคลาสเอง'}
+            description={unselectedCount > 0
+              ? 'เริ่มจากหลักสูตรที่ใกล้ปิดรับก่อน ระบบจัดเรียงรายการด้านล่างตามงานที่ควรจัดการ'
+              : 'คุณสามารถตรวจรายละเอียดคลาสที่จองไว้ หรือดูปฏิทินอบรมเพื่อวางแผนเวลาได้'}
+            items={[
+              { label: 'รอเลือกคลาส', value: unselectedCount, tone: unselectedCount > 0 ? 'amber' : 'green', hint: 'หลักสูตรที่คุณต้องจัดการเอง' },
+              { label: 'ใกล้ปิดรับ', value: dueSoonCount, tone: dueSoonCount > 0 ? 'red' : 'gray', hint: 'ภายใน 7 วัน' },
+              { label: 'หัวหน้ากำหนดให้', value: waitingForApproverCount, tone: 'blue', hint: 'รอหรือได้รับการจัดคลาส' },
+              { label: 'ล็อกการแก้ไขแล้ว', value: lockedBookedCount, tone: 'gray', hint: 'ปิดรับหรืออบรมเสร็จแล้ว' }
+            ]}
+            action={nextActionCourse && (
+              <button
+                type="button"
+                onClick={() => setSelectedCourse(nextActionCourse)}
+                className="inline-flex w-full sm:w-auto justify-center items-center px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors min-h-[44px]"
+              >
+                เลือกคลาสถัดไป
+              </button>
+            )}
+          />
+        )}
         {loading ? (
           <div className="loading-state text-center py-12 text-gray-500">กำลังโหลดหลักสูตรของคุณ...</div>
         ) : courses.length === 0 ? (
@@ -632,7 +665,7 @@ export default function EmployeePortal() {
                             disabled={course.classes.length <= 1 || isLocked}
                             className={`font-medium ${course.classes.length <= 1 || isLocked ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:text-orange-800 hover:underline'}`}
                           >
-                            🔄 เปลี่ยนคลาส
+                            เปลี่ยนคลาส
                           </button>
                           <button
                             onClick={() => handleCancelBook(course.id)}

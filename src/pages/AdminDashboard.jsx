@@ -19,7 +19,7 @@ import { supabase } from '../supabase';
 import ConfirmModal from '../components/ConfirmModal';
 import FormattedDate from '../components/FormattedDate';
 import BrandLogo from '../components/BrandLogo';
-import { EmptyState, PageIntro } from '../components/LayoutPrimitives';
+import { ActionSummary, EmptyState, PageIntro } from '../components/LayoutPrimitives';
 import { logAdminAction } from '../utils/logger';
 import { softDelete } from '../utils/trash';
 import { useAuth } from '../context/AuthContext';
@@ -536,6 +536,10 @@ const handleDeleteCourse = (course) => {
   const waitCourses = courses.filter(course => !isCourseFinished(course));
   const finishedCourses = courses.filter(course => isCourseFinished(course));
   const displayedCourses = courseStatusView === 'finish' ? finishedCourses : waitCourses;
+  const coursesWithPending = waitCourses.filter(course => course.pending > 0);
+  const pendingPeopleTotal = coursesWithPending.reduce((sum, course) => sum + course.pending, 0);
+  const coursesWithoutClasses = waitCourses.filter(course => course.classes.length === 0);
+  const attentionCourse = coursesWithPending[0] || coursesWithoutClasses[0] || waitCourses[0];
 
   return (
     <div className="min-h-screen bg-transparent pb-20 sm:pb-12">
@@ -623,6 +627,32 @@ const handleDeleteCourse = (course) => {
               </div>
             </section>
 
+            <ActionSummary
+              eyebrow="Admin operations"
+              title={pendingPeopleTotal > 0 ? 'มีพนักงานตามแผนที่ยังไม่ลงทะเบียน' : 'ภาพรวมหลักสูตรรออบรมอยู่ในสถานะดี'}
+              description={pendingPeopleTotal > 0
+                ? 'เริ่มจากดูรายชื่อของหลักสูตรที่ยังมีคนรอลงทะเบียน แล้วติดตามหรือจัดคลาสต่อจากรายการด้านล่าง'
+                : 'ตรวจจำนวนที่นั่งและคลาสที่เต็มก่อนถึงวันอบรม เพื่อกันงานด่วนช่วงท้าย'}
+              items={[
+                { label: 'หลักสูตรรออบรม', value: waitCourses.length, tone: 'blue', hint: 'ยังไม่สิ้นสุดอบรม' },
+                { label: 'คนยังไม่ลงทะเบียน', value: pendingPeopleTotal, tone: pendingPeopleTotal > 0 ? 'amber' : 'green', hint: `${coursesWithPending.length} หลักสูตรมี pending` },
+                { label: 'หลักสูตรยังไม่ครบเป้าหมาย', value: coursesWithPending.length, tone: coursesWithPending.length > 0 ? 'amber' : 'green', hint: 'นับจากคนตามแผนที่ยังไม่ลงทะเบียน' },
+                { label: 'หลักสูตรไม่มีคลาส', value: coursesWithoutClasses.length, tone: coursesWithoutClasses.length > 0 ? 'amber' : 'gray', hint: 'สร้างรุ่นอบรมก่อนเปิดใช้' }
+              ]}
+              action={attentionCourse && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCourseStatusView('wait');
+                    setViewRosterCourse(attentionCourse);
+                  }}
+                  className="inline-flex w-full sm:w-auto justify-center items-center px-5 py-2.5 rounded-lg bg-gray-950 text-white text-sm font-semibold hover:bg-gray-800 transition-colors min-h-[44px]"
+                >
+                  ดูรายชื่อที่ต้องติดตาม
+                </button>
+              )}
+            />
+
             {displayedCourses.length === 0 ? (
               <EmptyState message={courseStatusView === 'finish' ? 'ยังไม่มีหลักสูตรที่สิ้นสุดอบรมแล้ว' : 'ยังไม่มีหลักสูตรที่รออบรม'} />
             ) : displayedCourses.map((course) => (
@@ -631,7 +661,7 @@ const handleDeleteCourse = (course) => {
               <div className="mobile-card-actions z-10 p-3 sm:p-0 sm:absolute sm:top-4 sm:right-4 sm:flex sm:flex-wrap sm:gap-2 sm:w-auto sm:justify-end">
                 <button
                   onClick={() => setViewRosterCourse(course)}
-                  className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm font-semibold text-white bg-gray-950 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-1.5"
                   title="ดูรายชื่อผู้เข้าร่วม"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -639,14 +669,14 @@ const handleDeleteCourse = (course) => {
                 </button>
                 <button
                   onClick={() => exportCourseExcel(course)}
-                  className="px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-1.5"
                   title="Export Excel"
                 >
-                  Export Excel
+                  ส่งออก Excel
                 </button>
                 <Link
                   to={`/admin/edit/${course.id}`}
-                  className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
                   title="แก้ไขหลักสูตร"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -656,6 +686,7 @@ const handleDeleteCourse = (course) => {
                   onClick={() => handleDeleteCourse(course)}
                   className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
                   title="ลบหลักสูตร"
+                  aria-label={`ลบหลักสูตร ${course.title}`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
@@ -1075,6 +1106,8 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
   const [historyEmpId, setHistoryEmpId] = useState(null);   // emp_id ที่กำลังดูประวัติ
   // filter state: { division: Set, dept: Set, section: Set }
   const [filter, setFilter] = useState({ division: new Set(), dept: new Set(), section: new Set() });
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const {
     allRegistered,
@@ -1176,20 +1209,25 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
   }, [allEntries, filter, hasFilter]);
 
   const { registered, notRegistered } = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
     const matches = (e) =>
       (filter.division.size === 0 || filter.division.has(e.division)) &&
       (filter.dept.size === 0 || filter.dept.has(e.dept)) &&
-      (filter.section.size === 0 || filter.section.has(e.section));
+      (filter.section.size === 0 || filter.section.has(e.section)) &&
+      (!query || [e.id, e.site, e.division, e.dept, e.section, e.level, e.className]
+        .some(value => String(value || '').toLowerCase().includes(query)));
 
     return {
       registered: allRegistered.filter(matches),
       notRegistered: allNotRegistered.filter(matches)
     };
-  }, [allRegistered, allNotRegistered, filter]);
+  }, [allRegistered, allNotRegistered, filter, searchTerm]);
+
+  const registeredPct = allEntries.length > 0 ? Math.round((allRegistered.length / allEntries.length) * 100) : 0;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-gray-900/55">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-start bg-gray-50/60">
           <div className="min-w-0 flex-1">
@@ -1206,12 +1244,69 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="overflow-auto p-4 sm:p-6 flex-1 space-y-5">
+        <div className="overflow-auto p-4 sm:p-6 flex-1 space-y-4">
+
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+                <p className="text-xs font-medium text-gray-500">ทั้งหมด</p>
+                <p className="mt-0.5 text-xl font-bold text-gray-900 tabular-nums">{allEntries.length}</p>
+              </div>
+              <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2.5">
+                <p className="text-xs font-medium text-green-700">ลงทะเบียนแล้ว</p>
+                <p className="mt-0.5 text-xl font-bold text-green-700 tabular-nums">{allRegistered.length}</p>
+              </div>
+              <div className={`rounded-xl border px-3 py-2.5 ${allNotRegistered.length > 0 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+                <p className={`text-xs font-medium ${allNotRegistered.length > 0 ? 'text-red-700' : 'text-green-700'}`}>ยังไม่ลง</p>
+                <p className={`mt-0.5 text-xl font-bold tabular-nums ${allNotRegistered.length > 0 ? 'text-red-700' : 'text-green-700'}`}>{allNotRegistered.length}</p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 min-w-[180px]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-gray-600">ความคืบหน้า</span>
+                <span className="text-sm font-bold text-gray-900 tabular-nums">{registeredPct}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-gray-200 overflow-hidden">
+                <div className="h-full rounded-full bg-green-500" style={{ width: `${registeredPct}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <input
+              type="search"
+              aria-label="ค้นหารายชื่อผู้เข้าร่วม"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ค้นหารหัส, หน่วยงาน, รุ่น, Level..."
+              className="w-full sm:max-w-md px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex gap-2">
+              {(hasFilter || searchTerm) && (
+                <button
+                  type="button"
+                  onClick={() => { clearAll(); setSearchTerm(''); }}
+                  className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg min-h-[40px]"
+                >
+                  ล้างการค้นหา
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDashboard(prev => !prev)}
+                className="px-3 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg min-h-[40px]"
+                aria-expanded={showDashboard}
+              >
+                {showDashboard ? 'ซ่อนตัวกรองหน่วยงาน' : 'ดูตัวกรองหน่วยงาน'}
+              </button>
+            </div>
+          </div>
 
           {/* ─── Dashboard ─── */}
+          {showDashboard && (
           <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/40">
             <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <p className="text-sm font-bold text-gray-700">📊 Dashboard ผู้เข้าร่วมทั้งหมด ({allEntries.length} คน) — กดเพื่อกรอง</p>
+              <p className="text-sm font-bold text-gray-700">สรุปตามหน่วยงาน ({allEntries.length} คน), กดแถวเพื่อกรอง</p>
               {hasFilter && (
                 <button onClick={clearAll} className="text-xs font-medium text-blue-600 hover:underline">ล้างตัวกรอง</button>
               )}
@@ -1222,21 +1317,22 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
               <DashSection title="Section" field="section" counts={sectionCounts} filter={filter} focused={focusedValues.section} hasFilter={hasFilter} onToggle={toggleFilter} />
             </div>
           </div>
+          )}
 
           {/* ─── 2 ฝั่ง ─── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${notRegistered.length === 0 ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-2'}`}>
             {/* เขียว */}
             <div className="border border-green-200 rounded-xl overflow-hidden flex flex-col">
               <div className="px-4 py-3 bg-green-50 border-b border-green-200 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></span>
                 <p className="text-sm font-bold text-green-800">
-                  ลงทะเบียนแล้ว ({registered.length}{hasFilter ? `/${allRegistered.length}` : ''} คน)
+                  ลงทะเบียนแล้ว ({registered.length}{hasFilter || searchTerm ? `/${allRegistered.length}` : ''} คน)
                 </p>
               </div>
-              <div className="roster-scroll divide-y divide-gray-100 overflow-y-auto max-h-[40vh]">
+              <div className="roster-scroll divide-y divide-gray-100">
                 {registered.length === 0 ? (
                   <p className="text-sm text-gray-400 italic text-center py-6">
-                    {hasFilter ? 'ไม่มีผู้ลงทะเบียนตามเงื่อนไข' : 'ยังไม่มีผู้ลงทะเบียน'}
+                    {hasFilter || searchTerm ? 'ไม่มีผู้ลงทะเบียนตามเงื่อนไข' : 'ยังไม่มีผู้ลงทะเบียน'}
                   </p>
                 ) : registered.map(p => (
                   <div key={p.id} className="roster-row px-4 py-3">
@@ -1264,17 +1360,34 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
             </div>
 
             {/* แดง */}
+            {notRegistered.length === 0 ? (
+              <div className="h-fit rounded-xl border border-green-200 bg-green-50 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-green-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-green-800">
+                      {hasFilter || searchTerm ? 'ไม่พบคนค้างตามเงื่อนไข' : 'ลงทะเบียนครบแล้ว'}
+                    </p>
+                    <p className="mt-1 text-sm text-green-700">
+                      {hasFilter || searchTerm
+                        ? 'ลองล้างการค้นหาหรือตัวกรองเพื่อดูภาพรวมทั้งหมด'
+                        : 'ทุกคนในรายชื่อหลักสูตรนี้มีคลาสแล้ว'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
             <div className="border border-red-200 rounded-xl overflow-hidden flex flex-col">
               <div className="px-4 py-3 bg-red-50 border-b border-red-200 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
                 <p className="text-sm font-bold text-red-800">
-                  ยังไม่ลงทะเบียน ({notRegistered.length}{hasFilter ? `/${allNotRegistered.length}` : ''} คน)
+                  ยังไม่ลงทะเบียน ({notRegistered.length}{hasFilter || searchTerm ? `/${allNotRegistered.length}` : ''} คน)
                 </p>
               </div>
-              <div className="roster-scroll divide-y divide-gray-100 overflow-y-auto max-h-[40vh]">
+              <div className="roster-scroll divide-y divide-gray-100">
                 {notRegistered.length === 0 ? (
                   <p className="text-sm text-gray-400 italic text-center py-6">
-                    {hasFilter ? 'ไม่มีคนตามเงื่อนไข' : 'ทุกคนในรายชื่อลงทะเบียนครบแล้ว'}
+                    {hasFilter || searchTerm ? 'ไม่มีคนตามเงื่อนไข' : 'ทุกคนในรายชื่อลงทะเบียนครบแล้ว'}
                   </p>
                 ) : notRegistered.map(p => (
                   <div key={p.id} className="roster-row px-4 py-3">
@@ -1297,6 +1410,7 @@ function CourseRosterModal({ course, allEmployees, onClose }) {
                 ))}
               </div>
             </div>
+            )}
           </div>
         </div>
 

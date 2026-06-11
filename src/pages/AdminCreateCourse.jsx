@@ -53,10 +53,11 @@ function MultiSelect({ label, options, selected, onChange, placeholder }) {
   );
 }
 
-// --- Custom MultiSelect for Employees ---
+// --- Selected employee editor for mandatory participants ---
 function EmployeeMultiSelect({ allEmployees, selectedIds, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -67,48 +68,209 @@ function EmployeeMultiSelect({ allEmployees, selectedIds, onChange }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const employeeMap = useMemo(() => {
+    const map = {};
+    allEmployees.forEach(emp => { map[emp.id] = emp; });
+    return map;
+  }, [allEmployees]);
+
   const toggleOption = (id) => {
     if (selectedIds.includes(id)) onChange(selectedIds.filter(i => i !== id));
     else onChange([...selectedIds, id]);
   };
 
+  const removeId = (id) => onChange(selectedIds.filter(i => i !== id));
+  const clearAll = () => onChange([]);
+
+  const addIdsFromInput = () => {
+    const ids = search.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) return;
+
+    const valid = ids.filter(id => employeeMap[id]);
+    const invalid = ids.filter(id => !employeeMap[id]);
+    const merged = [...new Set([...selectedIds, ...valid])];
+
+    onChange(merged);
+    setSearch('');
+    setIsOpen(false);
+
+    if (invalid.length > 0) {
+      alert(`ไม่พบรหัสพนักงาน ${invalid.length} รายการ:\n${invalid.slice(0, 20).join(', ')}${invalid.length > 20 ? '\n...' : ''}`);
+    }
+  };
+
   const filtered = allEmployees.filter(e =>
     (e.id || '').toLowerCase().includes(search.toLowerCase())
+      || (e.email || '').toLowerCase().includes(search.toLowerCase())
+      || (e.dept || '').toLowerCase().includes(search.toLowerCase())
+      || (e.section || '').toLowerCase().includes(search.toLowerCase())
   );
+  const selectedSet = new Set(selectedIds);
+  const duplicateCount = Math.max(0, selectedIds.length - selectedSet.size);
+  const missingEmployeeCount = [...selectedSet].filter(id => !employeeMap[id]).length;
+  const missingEmailCount = [...selectedSet].filter(id => {
+    const emp = employeeMap[id];
+    return emp && !emp.email;
+  }).length;
+  const selectedDetails = [...selectedSet]
+    .map(id => ({ id, emp: employeeMap[id] }))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const chipListClass = expanded ? 'max-h-72 overflow-y-auto' : 'max-h-[92px] overflow-hidden';
 
   return (
-    <div className="relative" ref={containerRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">เลือกรายชื่อ (รายบุคคล)</label>
-      <div className="w-full min-h-[42px] px-3 py-2 rounded-lg border border-gray-200 bg-white flex flex-wrap gap-2 items-center hover:border-blue-300 transition-colors">
-        {selectedIds.map(id => {
-          return (
-            <span key={id} className="inline-flex items-center bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs border border-green-100">
-              {id}
-              <button type="button" onClick={() => toggleOption(id)} className="ml-1 text-green-500 hover:text-green-800">&times;</button>
-            </span>
-          );
-        })}
-        <input
-          type="text"
-          placeholder="ค้นหารหัสพนักงาน..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => setIsOpen(true)}
-          className="flex-1 outline-none text-sm min-w-[150px] bg-transparent"
-        />
+    <div className="space-y-4" ref={containerRef}>
+      <div className="grid gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <p className="text-xs font-semibold text-green-700">เลือกแล้ว</p>
+          <p className="mt-1 text-2xl font-bold text-green-700 tabular-nums">{selectedSet.size}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <p className="text-xs font-semibold text-gray-500">รหัสซ้ำ</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{duplicateCount}</p>
+        </div>
+        <div className={`rounded-xl border px-4 py-3 ${missingEmployeeCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+          <p className={`text-xs font-semibold ${missingEmployeeCount > 0 ? 'text-red-700' : 'text-gray-500'}`}>ไม่พบในระบบ</p>
+          <p className={`mt-1 text-2xl font-bold tabular-nums ${missingEmployeeCount > 0 ? 'text-red-700' : 'text-gray-900'}`}>{missingEmployeeCount}</p>
+        </div>
+        <div className={`rounded-xl border px-4 py-3 ${missingEmailCount > 0 ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+          <p className={`text-xs font-semibold ${missingEmailCount > 0 ? 'text-amber-700' : 'text-gray-500'}`}>ยังไม่มีอีเมล</p>
+          <p className={`mt-1 text-2xl font-bold tabular-nums ${missingEmailCount > 0 ? 'text-amber-700' : 'text-gray-900'}`}>{missingEmailCount}</p>
+        </div>
       </div>
-      {isOpen && (
-        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
-          {filtered.map(emp => (
-            <div key={emp.id} onClick={() => toggleOption(emp.id)} className="px-4 py-2 hover:bg-gray-50 cursor-pointer flex items-center text-sm">
-              <input type="checkbox" checked={selectedIds.includes(emp.id)} readOnly className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300" />
-              <div className="flex flex-col">
-                <span className="font-medium text-gray-900">{emp.id}</span>
-                <span className="text-xs text-gray-400">{emp.dept} - {emp.site}</span>
-              </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
+        <label className="block text-sm font-semibold text-gray-800 mb-2">เพิ่มรหัสพนักงาน</label>
+        <div className="relative flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            placeholder="พิมพ์หรือวางหลายรหัส เช่น 182992, 182390"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addIdsFromInput();
+              }
+            }}
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={addIdsFromInput}
+            className="px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 min-h-[44px]"
+          >
+            เพิ่ม
+          </button>
+          {isOpen && search.trim() && (
+            <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+              {filtered.slice(0, 40).map(emp => (
+                <button
+                  type="button"
+                  key={emp.id}
+                  onClick={() => {
+                    toggleOption(emp.id);
+                    setSearch('');
+                    setIsOpen(false);
+                  }}
+                  className="w-full px-4 py-2 hover:bg-gray-50 cursor-pointer flex items-center text-sm text-left"
+                >
+                  <input type="checkbox" checked={selectedIds.includes(emp.id)} readOnly className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <div className="min-w-0">
+                    <span className="font-medium text-gray-900">{emp.id}</span>
+                    <span className="ml-2 text-xs text-gray-500">{emp.dept || '-'} • {emp.site || '-'}</span>
+                  </div>
+                </button>
+              ))}
+              {filtered.length === 0 && <div className="px-4 py-3 text-sm text-gray-500">ไม่พบรายชื่อที่ค้นหา</div>}
             </div>
-          ))}
-          {filtered.length === 0 && <div className="px-4 py-3 text-sm text-gray-500">ไม่พบรายชื่อที่ค้นหา</div>}
+          )}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">กด Enter เพื่อเพิ่มได้ทันที รองรับการวางหลายรหัสโดยคั่นด้วย comma, space หรือขึ้นบรรทัดใหม่</p>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-800">รายการที่เลือกแล้ว</label>
+            <p className="text-xs text-gray-500">แสดงเป็น chip สีเขียวเพราะอยู่ในรายชื่อหลักสูตรแล้ว</p>
+          </div>
+          <div className="flex gap-2">
+            {selectedSet.size > 18 && (
+              <button
+                type="button"
+                onClick={() => setExpanded(prev => !prev)}
+                className="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg"
+              >
+                {expanded ? 'ย่อรายการ' : `แสดงทั้งหมด ${selectedSet.size} รายการ`}
+              </button>
+            )}
+            {selectedSet.size > 0 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-700 rounded-lg"
+              >
+                ล้างทั้งหมด
+              </button>
+            )}
+          </div>
+        </div>
+
+        {selectedDetails.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-8 text-center">
+            <p className="text-sm font-medium text-gray-600">ยังไม่มีรายชื่อผู้เข้าร่วมหลัก</p>
+            <p className="mt-1 text-xs text-gray-500">เพิ่มด้วยช่องด้านบน หรือ Import CSV</p>
+          </div>
+        ) : (
+          <div className={`flex flex-wrap gap-2 pr-1 transition-all ${chipListClass}`}>
+            {selectedDetails.map(({ id, emp }) => (
+              <span
+                key={id}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border ${
+                  emp ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                }`}
+              >
+                {id}
+                <button
+                  type="button"
+                  onClick={() => removeId(id)}
+                  className={`font-bold min-w-[18px] min-h-[18px] rounded hover:bg-white/70 ${
+                    emp ? 'text-green-600 hover:text-green-900' : 'text-red-600 hover:text-red-900'
+                  }`}
+                  aria-label={`ลบรหัส ${id}`}
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedDetails.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <p className="text-sm font-semibold text-gray-800">รายละเอียดพนักงานในรายชื่อ</p>
+          </div>
+          <div className="divide-y divide-gray-100 max-h-80 overflow-auto">
+            {selectedDetails.map(({ id, emp }) => (
+              <div key={id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">รหัส {id}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {emp ? `${emp.site || '-'} • ${emp.division || '-'} • ${emp.dept || '-'} • ${emp.section || '-'}` : 'ไม่พบข้อมูลพนักงานในระบบ'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${emp?.email ? 'bg-gray-100 text-gray-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                    {emp?.email ? 'มีอีเมล' : 'ยังไม่มีอีเมล'}
+                  </span>
+                  {emp?.level && <span className="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-semibold">{emp.level}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

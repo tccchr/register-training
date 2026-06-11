@@ -17,7 +17,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import FormattedDate from '../components/FormattedDate';
 import ClassDetailModal from '../components/ClassDetailModal';
 import BrandLogo from '../components/BrandLogo';
-import { EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
+import { ActionSummary, EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
 import { canManageCourse, getManageableParticipants } from '../utils/approvalScope';
 
 /**
@@ -397,6 +397,15 @@ export default function ApproverPortal({ adminMode = false }) {
   if (!employee) return null;
 
   const activeDragEmp = subordinates.find(s => `emp_${s.id}` === activeDragId);
+  const activeClassCounts = activeCourse
+    ? activeCourse.classes.map(cls => ({ cls, ...getRealtimeCount(cls.id) }))
+    : [];
+  const overfullClassCount = activeClassCounts.filter(item => item.overflow > 0).length;
+  const nearFullClassCount = activeClassCounts.filter(item => item.max > 0 && item.current >= item.max && item.overflow === 0).length;
+  const assignedCount = Math.max(0, subordinates.length - (grouped.pool?.length || 0));
+  const changedCount = activeCourseId
+    ? Object.keys(currentPending).filter(empId => currentPending[empId] !== (savedSnapshot[activeCourseId] || {})[empId]).length
+    : 0;
 
   return (
     <div className="min-h-screen bg-transparent pb-12">
@@ -497,6 +506,31 @@ export default function ApproverPortal({ adminMode = false }) {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
               >
+                <ActionSummary
+                  className="mb-6"
+                  eyebrow={adminMode ? 'Admin assignment queue' : 'Team assignment queue'}
+                  title={(grouped.pool?.length || 0) > 0 ? 'ยังมีพนักงานที่ไม่ได้ถูกจัดคลาส' : 'จัดคลาสครบแล้วสำหรับหลักสูตรนี้'}
+                  description={hasChanges
+                    ? 'มีรายการที่เปลี่ยนแปลงแล้ว รอตรวจจำนวนที่นั่งและกดบันทึก'
+                    : 'ลากรายชื่อไปยังคลาสที่ต้องการ หรือเพิ่มด้วยรหัสพนักงานในแต่ละคลาส'}
+                  items={[
+                    { label: 'ยังไม่จัดคลาส', value: grouped.pool?.length || 0, tone: (grouped.pool?.length || 0) > 0 ? 'amber' : 'green', hint: 'อยู่ใน pool ด้านบน' },
+                    { label: 'จัดแล้ว', value: assignedCount, tone: 'blue', hint: `${subordinates.length} คนในขอบเขตนี้` },
+                    { label: 'เปลี่ยนแปลงค้าง', value: changedCount, tone: changedCount > 0 ? 'amber' : 'gray', hint: hasChanges ? 'ต้องกดบันทึก' : 'ตรงกับข้อมูลล่าสุด' },
+                    { label: 'คลาสเต็ม/เกิน', value: overfullClassCount + nearFullClassCount, tone: overfullClassCount > 0 ? 'red' : 'gray', hint: overfullClassCount > 0 ? 'มีคลาสเกินจำนวน' : 'ตรวจที่นั่งก่อนบันทึก' }
+                  ]}
+                  action={hasChanges && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="inline-flex w-full sm:w-auto justify-center items-center px-5 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors min-h-[44px] disabled:opacity-50"
+                    >
+                      {saving ? 'กำลังบันทึก...' : `บันทึก ${changedCount} รายการ`}
+                    </button>
+                  )}
+                />
+
                 {/* Save bar */}
                 <div className="app-card mobile-sticky-actions rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -521,7 +555,7 @@ export default function ApproverPortal({ adminMode = false }) {
                           : 'bg-green-600 text-white hover:bg-green-700'
                       }`}
                     >
-                      {saving ? 'กำลังบันทึก...' : (hasChanges ? '💾 บันทึก' : '✓ บันทึกแล้ว')}
+                      {saving ? 'กำลังบันทึก...' : (hasChanges ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึกแล้ว')}
                     </button>
                   </div>
                 </div>
@@ -534,7 +568,7 @@ export default function ApproverPortal({ adminMode = false }) {
                   />
 
                   {/* Class slots */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+                  <div className={`grid grid-cols-1 gap-4 sm:gap-5 ${activeCourse.classes.length === 1 ? 'max-w-xl' : 'md:grid-cols-2 xl:grid-cols-3'}`}>
                     {activeCourse.classes.map(cls => {
                       const count = getRealtimeCount(cls.id);
                       return (
@@ -604,6 +638,28 @@ function Pool({ subs, total }) {
     (!filter.level || s.level === filter.level);
   const filtered = subs.filter(matches);
   const hasFilter = Object.values(filter).some(v => v);
+
+  if (subs.length === 0) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`rounded-xl border-2 border-dashed p-4 transition-colors ${
+          isOver ? 'border-blue-400 bg-blue-50' : 'border-green-200 bg-green-50'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="font-bold text-green-800 flex items-center gap-2">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            พนักงานทุกคนถูกกำหนดคลาสครบแล้ว
+          </p>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white text-green-700 border border-green-200">
+            0 / {total} คนค้าง
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-green-700">ถ้าต้องการนำพนักงานออกจากคลาส ลากชื่อกลับมาวางบนแถบนี้ได้</p>
+      </div>
+    );
+  }
 
   return (
     <div
