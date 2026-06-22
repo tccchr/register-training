@@ -39,11 +39,14 @@ export function AuthProvider({ children }) {
   const [notRegistered, setNotRegistered] = useState(false);
 
   const mountedRef = useRef(true);
+  const sessionRef = useRef(null);
+  const profileEmailRef = useRef(null);
 
   // --- โหลด profile จาก email ---
   // หมายเหตุ: ฟังก์ชันนี้ "ห้าม" ถูก await โดยตรงภายใน callback ของ onAuthStateChange
   const loadProfile = useCallback(async (currentSession) => {
     if (!currentSession?.user?.email) {
+      profileEmailRef.current = null;
       if (mountedRef.current) {
         setEmployee(null);
         setIsAdmin(false);
@@ -72,6 +75,8 @@ export function AuthProvider({ children }) {
 
       if (!mountedRef.current) return;
 
+      profileEmailRef.current = email;
+
       if (empData) {
         setEmployee(empData);
         setNotRegistered(false);
@@ -84,6 +89,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('loadProfile error:', err);
       if (mountedRef.current) {
+        profileEmailRef.current = null;
         setEmployee(null);
         setIsAdmin(false);
       }
@@ -109,6 +115,7 @@ export function AuthProvider({ children }) {
 
     // จัดการ session ที่ได้รับ — โหลด profile แล้วปลด loading
     const handleSession = async (s) => {
+      sessionRef.current = s;
       if (mountedRef.current) setSession(s);
       try {
         await loadProfile(s);
@@ -123,8 +130,24 @@ export function AuthProvider({ children }) {
     // จึง defer การโหลด profile ออกมาด้วย setTimeout(0) เพื่อหลุดจาก navigator lock
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
+        const nextEmail = s?.user?.email?.toLowerCase() || null;
+
         // อัปเดต session แบบ synchronous ได้ (ไม่ใช่ Supabase call)
+        sessionRef.current = s;
         if (mountedRef.current) setSession(s);
+
+        // TOKEN_REFRESHED มักเกิดตอนกลับมาแท็บเดิม ไม่จำเป็นต้อง reload employee/admin profile
+        if (_event === 'TOKEN_REFRESHED') {
+          finishLoading();
+          return;
+        }
+
+        // ลดการ reload profile ซ้ำเมื่อ Supabase ยิง SIGNED_IN/INITIAL_SESSION ด้วย user เดิม
+        if ((_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') && nextEmail && profileEmailRef.current === nextEmail) {
+          finishLoading();
+          return;
+        }
+
         // โหลด profile แบบ deferred — หลุดออกจาก lock context ของ callback
         setTimeout(() => {
           if (!mountedRef.current) return;
@@ -177,6 +200,8 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('signOut error:', err);
     }
+    sessionRef.current = null;
+    profileEmailRef.current = null;
     setSession(null);
     setEmployee(null);
     setIsAdmin(false);

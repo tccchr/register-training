@@ -507,6 +507,7 @@ export default function EmployeePortal() {
             <NavTab to="/portal" current={location.pathname} label="หลักสูตรของฉัน" badge={unselectedCount} />
             <NavTab to="/calendar" current={location.pathname} label="ปฏิทินอบรม" />
             {isApprover && <NavTab to="/approve" current={location.pathname} label="จัดการพนักงานในสายงาน" badge={pendingApprovalCount} />}
+            {isAdmin && <NavTab to="/admin/calendar" current={location.pathname} label="ปฏิทินคลาสทั้งหมด (Admin)" />}
             {isAdmin && <NavTab to="/admin/manage-classes" current={location.pathname} label="จัดคลาสให้พนักงาน (Admin)" />}
             {isAdmin && <NavTab to="/admin" current={location.pathname} label="จัดการระบบ (Admin)" />}
           </div>

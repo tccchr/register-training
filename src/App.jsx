@@ -5,6 +5,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminCreateCourse from './pages/AdminCreateCourse';
 import AdminEmployees from './pages/AdminEmployees';
 import AdminUsers from './pages/AdminUsers';
+import AdminCalendar from './pages/AdminCalendar';
 import UserCalendar from './pages/UserCalendar';
 import ApproverPortal from './pages/ApproverPortal';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -24,6 +25,7 @@ function App() {
 
           {/* หน้า Admin — ต้องเป็น admin */}
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/calendar" element={<ProtectedRoute requireAdmin><AdminCalendar /></ProtectedRoute>} />
           <Route path="/admin/manage-classes" element={<ProtectedRoute requireAdmin><ApproverPortal adminMode /></ProtectedRoute>} />
           <Route path="/admin/employees" element={<ProtectedRoute requireAdmin><AdminEmployees /></ProtectedRoute>} />
           <Route path="/admin/create" element={<ProtectedRoute requireAdmin><AdminCreateCourse /></ProtectedRoute>} />

@@ -18,7 +18,9 @@ import FormattedDate from '../components/FormattedDate';
 import ClassDetailModal from '../components/ClassDetailModal';
 import BrandLogo from '../components/BrandLogo';
 import { ActionSummary, EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
-import { canManageCourse, getManageableParticipants } from '../utils/approvalScope';
+import { canManageCourse, getAllCourseParticipants, getManageableParticipants } from '../utils/approvalScope';
+import { logAdminAction } from '../utils/logger';
+import { softDelete } from '../utils/trash';
 
 /**
  * ApproverPortal — หน้าจัดการคลาสให้พนักงานในสายงานแบบ Drag & Drop
@@ -42,6 +44,7 @@ export default function ApproverPortal({ adminMode = false }) {
   const [loading, setLoading] = useState(true);
 
   const [activeCourseId, setActiveCourseId] = useState(null);
+  const [showAllAdminParticipants, setShowAllAdminParticipants] = useState(false);
 
   // pending state: { courseId: { empId: classId | null } }
   //   ค่า null = พนักงานในสายงานคนนี้อยู่ใน pool (ไม่ได้ assign)
@@ -61,6 +64,12 @@ export default function ApproverPortal({ adminMode = false }) {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
+
+  const getAdminParticipants = useCallback((employees, course, includeUnrelated = false) => {
+    const activeEmployees = (employees || []).filter(emp => emp && !emp.is_deleted);
+    if (includeUnrelated) return activeEmployees;
+    return getAllCourseParticipants(activeEmployees, course);
+  }, []);
 
   // ─── Realtime: ฟัง reservations เพื่อ update count ───────────
   useEffect(() => {
@@ -122,7 +131,9 @@ export default function ApproverPortal({ adminMode = false }) {
       // สร้าง pending state จาก reservations ปัจจุบัน
       const initialPending = {};
       finalCourses.forEach(c => {
-        const subs = getManageableParticipants(emp, employeesData || [], c, adminMode);
+        const subs = adminMode
+          ? getAdminParticipants(employeesData || [], c, true)
+          : getManageableParticipants(emp, employeesData || [], c, adminMode);
         const courseMap = {};
         subs.forEach(sub => {
           const res = (reservationsData || []).find(r => r.emp_id === sub.id && r.course_id === c.id);
@@ -141,7 +152,7 @@ export default function ApproverPortal({ adminMode = false }) {
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [adminMode]);
+  }, [adminMode, getAdminParticipants]);
 
   useEffect(() => {
     loadRequestRef.current += 1;
@@ -160,8 +171,9 @@ export default function ApproverPortal({ adminMode = false }) {
 
   const subordinates = useMemo(() => {
     if (!employee || !activeCourse) return [];
+    if (adminMode) return getAdminParticipants(allEmployees, activeCourse, showAllAdminParticipants);
     return getManageableParticipants(employee, allEmployees, activeCourse, adminMode);
-  }, [employee, allEmployees, activeCourse, adminMode]);
+  }, [employee, allEmployees, activeCourse, adminMode, getAdminParticipants, showAllAdminParticipants]);
 
   const currentPending = useMemo(() => (
     activeCourseId ? (pending[activeCourseId] || {}) : {}
@@ -250,7 +262,7 @@ export default function ApproverPortal({ adminMode = false }) {
   const assignByCode = (classId, rawText) => {
     const ids = rawText.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
     if (ids.length === 0) return { added: 0, invalid: [] };
-    const subSet = new Set(subordinates.map(s => s.id));
+    const subSet = new Set((adminMode ? getAdminParticipants(allEmployees, activeCourse, showAllAdminParticipants) : subordinates).map(s => s.id));
     const valid = ids.filter(id => subSet.has(id));
     const invalid = ids.filter(id => !subSet.has(id));
     if (valid.length === 0) return { added: 0, invalid };
@@ -271,7 +283,7 @@ export default function ApproverPortal({ adminMode = false }) {
       .map(cls => ({ cls, ...getRealtimeCount(cls.id) }))
       .filter(x => x.overflow > 0);
 
-    if (overflows.length > 0) {
+    if (overflows.length > 0 && !adminMode) {
       const msg = overflows.map(x =>
         `• ${x.cls.name}: ${x.current}/${x.max} (เกิน ${x.overflow} คน)`
       ).join('\n');
@@ -292,7 +304,7 @@ export default function ApproverPortal({ adminMode = false }) {
       isOpen: true,
       type: 'info',
       title: 'ยืนยันการบันทึก',
-      message: `คุณกำลังจะบันทึกการกำหนดคลาสของพนักงานในสายงานในหลักสูตร "${activeCourse.title}"`,
+      message: `คุณกำลังจะบันทึกการกำหนดคลาสของพนักงาน${adminMode ? 'ในฐานะ Admin' : 'ในสายงาน'}ในหลักสูตร "${activeCourse.title}"${adminMode && overflows.length > 0 ? `\n\nหมายเหตุ: มี ${overflows.length} คลาสที่จำนวนเกินที่นั่ง แต่ Admin สามารถบันทึกแบบ override ได้` : ''}`,
       confirmText: 'บันทึก',
       onConfirm: async () => {
         setConfirmConfig({ isOpen: false });
@@ -339,20 +351,62 @@ export default function ApproverPortal({ adminMode = false }) {
       const errors = [];
       for (const op of operations) {
         if (op.type === 'cancel') {
-          const { data } = await supabase.rpc('cancel_reservation', {
-            p_res_id: op.resId, p_emp_id: op.empId
-          });
-          if (data && !data.ok) errors.push(`ยกเลิก ${op.empId}: ${data.error}`);
+          if (adminMode) {
+            try {
+              await softDelete('reservations', op.resId);
+              await logAdminAction('CANCEL_RESERVATION_BACKFILL', {
+                course_id: activeCourseId,
+                emp_id: op.empId,
+                reservation_id: op.resId,
+                admin_override: true
+              });
+            } catch (error) {
+              errors.push(`ยกเลิก ${op.empId}: ${error.message || error}`);
+            }
+          } else {
+            const { data } = await supabase.rpc('cancel_reservation', {
+              p_res_id: op.resId, p_emp_id: op.empId
+            });
+            if (data && !data.ok) errors.push(`ยกเลิก ${op.empId}: ${data.error}`);
+          }
         } else {
-          const { data } = await supabase.rpc('book_class', {
-            p_emp_id: op.empId,
-            p_course_id: activeCourseId,
-            p_class_id: op.classId,
-            p_in_plan: op.inPlan
-          });
-          if (data && !data.ok) {
-            const errMap = { FULL: 'คลาสเต็ม', ALREADY_BOOKED: 'จองแล้ว', COURSE_CLOSED: 'หลักสูตรปิด' };
-            errors.push(`${op.empId}: ${errMap[data.error] || data.error}`);
+          if (adminMode) {
+            const reservationId = `res_admin_${Date.now()}_${op.empId}_${op.classId}`;
+            const { error } = await supabase
+              .from('reservations')
+              .insert({
+                id: reservationId,
+                emp_id: op.empId,
+                course_id: activeCourseId,
+                class_id: op.classId,
+                in_plan: op.inPlan,
+                timestamp: new Date().toISOString(),
+                is_deleted: false
+              });
+
+            if (error) {
+              errors.push(`${op.empId}: ${error.message}`);
+            } else {
+              await logAdminAction('BOOK_CLASS_BACKFILL', {
+                course_id: activeCourseId,
+                class_id: op.classId,
+                emp_id: op.empId,
+                reservation_id: reservationId,
+                in_plan: op.inPlan,
+                admin_override: true
+              });
+            }
+          } else {
+            const { data } = await supabase.rpc('book_class', {
+              p_emp_id: op.empId,
+              p_course_id: activeCourseId,
+              p_class_id: op.classId,
+              p_in_plan: op.inPlan
+            });
+            if (data && !data.ok) {
+              const errMap = { FULL: 'คลาสเต็ม', ALREADY_BOOKED: 'จองแล้ว', COURSE_CLOSED: 'หลักสูตรปิด' };
+              errors.push(`${op.empId}: ${errMap[data.error] || data.error}`);
+            }
           }
         }
       }
@@ -406,6 +460,13 @@ export default function ApproverPortal({ adminMode = false }) {
   const changedCount = activeCourseId
     ? Object.keys(currentPending).filter(empId => currentPending[empId] !== (savedSnapshot[activeCourseId] || {})[empId]).length
     : 0;
+  const relatedAdminParticipants = adminMode && activeCourse
+    ? getAdminParticipants(allEmployees, activeCourse, false)
+    : [];
+  const allAdminParticipants = adminMode && activeCourse
+    ? getAdminParticipants(allEmployees, activeCourse, true)
+    : [];
+  const unrelatedAdminCount = Math.max(0, allAdminParticipants.length - relatedAdminParticipants.length);
 
   return (
     <div className="min-h-screen bg-transparent pb-12">
@@ -430,6 +491,7 @@ export default function ApproverPortal({ adminMode = false }) {
             <NavTab to="/portal" current={location.pathname} label="หลักสูตรของฉัน" />
             <NavTab to="/calendar" current={location.pathname} label="ปฏิทินอบรม" />
             <NavTab to="/approve" current={location.pathname} label="จัดการพนักงานในสายงาน" badge={adminMode ? 0 : totalPending} />
+            {isAdmin && <NavTab to="/admin/calendar" current={location.pathname} label="ปฏิทินคลาสทั้งหมด (Admin)" />}
             {isAdmin && <NavTab to="/admin/manage-classes" current={location.pathname} label="จัดคลาสให้พนักงาน (Admin)" />}
             {isAdmin && <NavTab to="/admin" current={location.pathname} label="จัดการระบบ (Admin)" />}
           </div>
@@ -461,7 +523,9 @@ export default function ApproverPortal({ adminMode = false }) {
                   className="w-full sm:w-auto min-w-[280px] px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {allCourses.map(c => {
-                    const subs = getManageableParticipants(employee, allEmployees, c, adminMode);
+                    const subs = adminMode
+                      ? getAdminParticipants(allEmployees, c, false)
+                      : getManageableParticipants(employee, allEmployees, c, adminMode);
                     const unassigned = subs.filter(s => !reservations.some(r => r.emp_id === s.id && r.course_id === c.id)).length;
                     return (
                       <option key={c.id} value={c.id}>
@@ -470,6 +534,51 @@ export default function ApproverPortal({ adminMode = false }) {
                     );
                   })}
                 </select>
+                {activeCourse && (
+                  <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">
+                          แสดงเฉพาะรายชื่อหลักสูตรก่อน
+                        </p>
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                          {showAllAdminParticipants ? `${allAdminParticipants.length} คน` : `${relatedAdminParticipants.length} คน`}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        {showAllAdminParticipants
+                          ? `เปิดรวมพนักงานนอกเงื่อนไขแล้ว เพิ่มอีก ${unrelatedAdminCount} คนสำหรับ Admin override`
+                          : `ค่าเริ่มต้นจะแสดงเฉพาะคนที่เกี่ยวกับหลักสูตรนี้ เปิดสวิตช์เมื่อต้องการค้นหาคนอื่นเพิ่ม`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                      <span className={`text-xs font-semibold ${showAllAdminParticipants ? 'text-blue-700' : 'text-gray-500'}`}>
+                        รวมคนนอกเงื่อนไข
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={showAllAdminParticipants}
+                        aria-label="แสดงพนักงานนอกเงื่อนไข"
+                        onClick={() => setShowAllAdminParticipants(prev => !prev)}
+                        className="relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-full bg-gray-300 p-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`absolute inset-0 rounded-full bg-blue-600 transition-opacity duration-200 ease-out ${
+                            showAllAdminParticipants ? 'opacity-100' : 'opacity-0'
+                          }`}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`relative z-10 h-7 w-7 rounded-full bg-white shadow-[0_1px_4px_rgba(15,23,42,0.28)] transition-transform duration-200 ease-out ${
+                            showAllAdminParticipants ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mobile-action-rail flex gap-2 mb-7 sm:mb-8 overflow-x-auto pb-1">

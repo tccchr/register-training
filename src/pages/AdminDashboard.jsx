@@ -562,6 +562,9 @@ const handleDeleteCourse = (course) => {
             <Link to="/admin/manage-classes" className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors shadow-sm">
               จัดคลาสให้พนักงาน
             </Link>
+            <Link to="/admin/calendar" className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors shadow-sm">
+              ปฏิทินคลาสทั้งหมด
+            </Link>
             <Link to="/admin/users" className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors shadow-sm">
               จัดการสิทธิ์ Admin
             </Link>
