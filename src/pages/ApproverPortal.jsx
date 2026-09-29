@@ -19,6 +19,7 @@ import ClassDetailModal from '../components/ClassDetailModal';
 import BrandLogo from '../components/BrandLogo';
 import { ActionSummary, EmptyState, NavTab, PageIntro } from '../components/LayoutPrimitives';
 import { canManageCourse, getAllCourseParticipants, getManageableParticipants } from '../utils/approvalScope';
+import { isCourseFinished } from '../utils/courseStatus';
 import { logAdminAction } from '../utils/logger';
 import { softDelete } from '../utils/trash';
 
@@ -122,7 +123,10 @@ export default function ApproverPortal({ adminMode = false }) {
         .map(c => ({
           ...c,
           classes: (classesData || []).filter(cls => cls.course_id === c.id)
-        }));
+        }))
+        // หน้าจัดคลาสใช้สำหรับงานที่ยังต้องดำเนินการเท่านั้น
+        // จึงซ่อนหลักสูตรที่คลาสล่าสุดสิ้นสุดแล้วออกจากรายการเลือก
+        .filter(c => !isCourseFinished(c));
 
       setAllCourses(finalCourses);
       setAllEmployees(employeesData || []);
@@ -672,6 +676,7 @@ export default function ApproverPortal({ adminMode = false }) {
                 <section className="space-y-5">
                   {/* Pool */}
                   <Pool
+                    key={activeCourse.id}
                     subs={grouped.pool}
                     total={subordinates.length}
                   />
@@ -731,6 +736,8 @@ function getClassMembersList(classId, reservations, allEmployees) {
 function Pool({ subs, total }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'pool' });
   const [filter, setFilter] = useState({ site:'', division:'', dept:'', section:'', level:'' });
+  // กลุ่มใหญ่เริ่มแบบย่อเพื่อลดความสูงหน้า แต่ผู้ใช้กางกลับได้ตลอด
+  const [isCollapsed, setIsCollapsed] = useState(() => subs.length > 30);
 
   // ตัวเลือกของแต่ละ filter — มาจาก subs จริง
   const uniq = (f) => [...new Set(subs.map(s => s[f]).filter(Boolean))].sort();
@@ -782,47 +789,68 @@ function Pool({ subs, total }) {
           <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
           พนักงานที่ยังไม่ได้กำหนดคลาส
         </p>
-        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
-          {hasFilter ? `${filtered.length}/${subs.length}` : `${subs.length} / ${total}`} คน
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
+            {hasFilter ? `${filtered.length}/${subs.length}` : `${subs.length} / ${total}`} คน
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(v => !v)}
+            aria-expanded={!isCollapsed}
+            aria-controls="unassigned-employee-pool"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          >
+            {isCollapsed ? 'แสดงรายชื่อ' : 'ย่อรายชื่อ'}
+            <svg className={`h-4 w-4 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* ─── Filter bar (5 มิติ) ─── */}
-      {subs.length > 0 && (
-        <div className="mb-3 p-2 bg-white/70 border border-gray-200 rounded-lg grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 items-center">
-          <span className="text-[11px] font-medium text-gray-500 px-1">🔍 กรอง:</span>
-          {[['site','Site'],['division','Division'],['dept','Dept'],['section','Section'],['level','Level']].map(([f,label]) => (
-            <select
-              key={f}
-              value={filter[f]}
-              onChange={(e) => setFilter({...filter, [f]: e.target.value})}
-               className={`text-[11px] min-h-[44px] px-2 py-1 rounded border bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 ${
-                filter[f] ? 'border-blue-400 text-blue-700 font-medium' : 'border-gray-300 text-gray-700'
-              }`}
-            >
-              <option value="">{label}: ทั้งหมด</option>
-              {opts[f].map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          ))}
-          {hasFilter && (
-            <button
-              type="button"
-              onClick={() => setFilter({ site:'', division:'', dept:'', section:'', level:'' })}
-               className="text-[11px] font-medium text-red-600 hover:underline px-1 min-h-[44px]"
-            >
-              ล้าง
-            </button>
-          )}
+      {isCollapsed ? (
+        <div className="rounded-lg border border-gray-200 bg-white/70 px-4 py-3 text-sm text-gray-600">
+          ซ่อนรายชื่อ {subs.length} คนอยู่ — สามารถลากพนักงานจากคลาสกลับมาวางบนกล่องนี้ได้แม้ขณะย่อ
         </div>
-      )}
-
-      {filtered.length === 0 ? (
-        <p className="text-sm text-gray-400 italic text-center py-4">
-          {subs.length === 0 ? 'พนักงานทุกคนถูกกำหนดคลาสครบแล้ว' : 'ไม่มีพนักงานตามเงื่อนไขกรอง'}
-        </p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {filtered.map(sub => <DragCard key={sub.id} sub={sub} />)}
+        <div id="unassigned-employee-pool">
+          {/* ─── Filter bar (5 มิติ) ─── */}
+          {subs.length > 0 && (
+            <div className="mb-3 p-2 bg-white/70 border border-gray-200 rounded-lg grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] font-medium text-gray-500 px-1">กรอง:</span>
+              {[['site','Site'],['division','Division'],['dept','Dept'],['section','Section'],['level','Level']].map(([f,label]) => (
+                <select
+                  key={f}
+                  value={filter[f]}
+                  onChange={(e) => setFilter({...filter, [f]: e.target.value})}
+                  className={`text-[11px] min-h-[44px] px-2 py-1 rounded border bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+                    filter[f] ? 'border-blue-400 text-blue-700 font-medium' : 'border-gray-300 text-gray-700'
+                  }`}
+                  aria-label={`กรองตาม ${label}`}
+                >
+                  <option value="">{label}: ทั้งหมด</option>
+                  {opts[f].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              ))}
+              {hasFilter && (
+                <button
+                  type="button"
+                  onClick={() => setFilter({ site:'', division:'', dept:'', section:'', level:'' })}
+                  className="text-[11px] font-medium text-red-600 hover:underline px-1 min-h-[44px]"
+                >
+                  ล้าง
+                </button>
+              )}
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <p className="text-sm text-gray-400 italic text-center py-4">ไม่มีพนักงานตามเงื่อนไขกรอง</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {filtered.map(sub => <DragCard key={sub.id} sub={sub} />)}
+            </div>
+          )}
         </div>
       )}
     </div>

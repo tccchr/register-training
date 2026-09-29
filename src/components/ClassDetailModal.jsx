@@ -11,9 +11,11 @@ import { normalizeUrl } from '../utils/url';
  *   cls       — class object (มี name, date, start_time, end_time, location, location_url)
  *   course    — course object (ใช้ title และ description)
  *   members   — array ของ employee objects ที่ลงทะเบียนคลาสนี้
+ *   participantCount — จำนวนผู้เข้าร่วมจริง (ใช้ได้แม้ซ่อนรายชื่อ)
+ *   showParticipants — เปิด/ปิดการแสดงตัวตนผู้เข้าร่วม
  *   onClose   — callback
  */
-export default function ClassDetailModal({ cls, course, members = [], onClose }) {
+export default function ClassDetailModal({ cls, course, members = [], participantCount = members.length, showParticipants = true, onClose }) {
   if (!cls) return null;
 
   return (
@@ -80,10 +82,14 @@ export default function ClassDetailModal({ cls, course, members = [], onClose })
           {/* รายชื่อสมาชิก */}
           <div>
             <p className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-1.5">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              รายชื่อผู้เข้าร่วม ({members.length} คน)
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              {showParticipants ? `รายชื่อผู้เข้าร่วม (${members.length} คน)` : `ผู้เข้าร่วม ${participantCount} คน`}
             </p>
-            {members.length === 0 ? (
+            {!showParticipants ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                ผู้จัดหลักสูตรตั้งค่าไม่เปิดเผยรายชื่อผู้เข้าร่วมสำหรับคลาสนี้
+              </div>
+            ) : members.length === 0 ? (
               <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center border">
                 ยังไม่มีผู้ลงทะเบียนในคลาสนี้
               </p>

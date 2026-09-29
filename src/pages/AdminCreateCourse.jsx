@@ -317,7 +317,7 @@ export default function AdminCreateCourse() {
   const [mandatoryList, setMandatoryList] = useState([]);
 
   const [classes, setClasses] = useState(() => [
-    { id: Date.now().toString(), name: 'รุ่นที่ 1', date: '', startTime: '', endTime: '', location: '', locationUrl: '', instructor: '', maxSeats: '' }
+    { id: Date.now().toString(), name: 'รุ่นที่ 1', date: '', startTime: '', endTime: '', location: '', locationUrl: '', instructor: '', maxSeats: '', showParticipantList: true }
   ]);
 
   useEffect(() => {
@@ -366,6 +366,7 @@ export default function AdminCreateCourse() {
               locationUrl: cls.location_url || '',
               instructor: cls.instructor || '',
               maxSeats: String(cls.max_seats || ''),
+              showParticipantList: cls.show_participant_list !== false,
               _isExisting: true,
               _origSortOrder: cls.sort_order ?? 0
             }));
@@ -414,7 +415,7 @@ export default function AdminCreateCourse() {
   };
 
   const handleAddClass = () => {
-    setClasses([...classes, { id: Date.now().toString(), name: `รุ่นที่ ${classes.length + 1}`, date: '', startTime: '', endTime: '', location: '', locationUrl: '', instructor: '', maxSeats: '' }]);
+    setClasses([...classes, { id: Date.now().toString(), name: `รุ่นที่ ${classes.length + 1}`, date: '', startTime: '', endTime: '', location: '', locationUrl: '', instructor: '', maxSeats: '', showParticipantList: true }]);
   };
 
   const handleDuplicateClass = (cls) => {
@@ -555,6 +556,7 @@ export default function AdminCreateCourse() {
           location: cls.location,
           location_url: cls.locationUrl || '',
           instructor: cls.instructor || '',
+          show_participant_list: cls.showParticipantList !== false,
           sort_order: sortOrder,
           is_deleted: false
         };
@@ -973,6 +975,18 @@ export default function AdminCreateCourse() {
                       <label className="block text-xs font-medium text-gray-500 mb-1">จำนวนที่นั่งสูงสุด <span className="text-red-500">*</span></label>
                       <input required type="number" min="1" value={cls.maxSeats} onChange={e => updateClass(cls.id, 'maxSeats', e.target.value)} placeholder="เช่น 30" className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
+                    <label className="md:col-span-12 flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 cursor-pointer hover:border-blue-200 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={cls.showParticipantList !== false}
+                        onChange={e => updateClass(cls.id, 'showParticipantList', e.target.checked)}
+                        className="mt-0.5 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-gray-900">เปิดให้พนักงานดูรายชื่อผู้เข้าร่วมคลาสนี้</span>
+                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">ถ้าไม่ติ๊ก พนักงานจะยังเห็นจำนวนที่นั่งและรายละเอียดคลาส แต่จะไม่เห็นรายชื่อผู้เข้าร่วม โดย Admin/Staff ที่มีสิทธิ์จัดคลาสยังดูได้ตามปกติ</span>
+                      </span>
+                    </label>
                   </div>
                 </div>
               ))}

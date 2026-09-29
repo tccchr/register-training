@@ -14,6 +14,7 @@ import { isClassFinished } from '../utils/courseStatus';
  *   course          — course object (มี title, description, selection_mode, classes)
  *   currentCls      — class object ที่ user ลงทะเบียนปัจจุบัน
  *   reservations    — array reservations ทั้งหมด (สำหรับนับและดึง members)
+ *   seatCounts      — object classId -> จำนวนผู้จองจริงจาก aggregate RPC
  *   allEmployees    — object/map ของพนักงานทั้งหมด (สำหรับแสดงรายชื่อ)
  *   onChangeClass   — callback (targetCls) => void
  *   onCancel        — callback () => void  (ยกเลิกการจอง)
@@ -26,6 +27,7 @@ export default function MyReservationModal({
   course,
   currentCls,
   reservations = [],
+  seatCounts = {},
   allEmployees = {},
   onChangeClass,
   onCancel,
@@ -51,6 +53,8 @@ export default function MyReservationModal({
       .filter(Boolean);
 
   const currentMembers = getMembers(currentCls.id);
+  const currentBookedCount = seatCounts[currentCls.id] ?? currentMembers.length;
+  const canViewCurrentParticipants = currentCls.show_participant_list !== false;
   const otherClasses = (course.classes || []).filter(c => c.id !== currentCls.id);
 
   return (
@@ -147,10 +151,14 @@ export default function MyReservationModal({
             {/* รายชื่อเพื่อนร่วมคลาส */}
             <div>
               <h4 className="font-bold text-gray-900 mb-3 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                รายชื่อผู้เข้าร่วม ({currentMembers.length} คน)
+                <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                {canViewCurrentParticipants ? `รายชื่อผู้เข้าร่วม (${currentMembers.length} คน)` : `ผู้เข้าร่วม ${currentBookedCount} คน`}
               </h4>
-              {currentMembers.length === 0 ? (
+              {!canViewCurrentParticipants ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                  ผู้จัดหลักสูตรตั้งค่าไม่เปิดเผยรายชื่อผู้เข้าร่วมสำหรับคลาสนี้
+                </div>
+              ) : currentMembers.length === 0 ? (
                 <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center border border-gray-100">ยังไม่มีผู้เข้าร่วมในคลาสนี้</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -179,7 +187,8 @@ export default function MyReservationModal({
                 <div className="space-y-3">
                   {otherClasses.map(cls => {
                     const members = getMembers(cls.id);
-                    const booked = members.length;
+                    const booked = seatCounts[cls.id] ?? members.length;
+                    const canViewParticipants = cls.show_participant_list !== false;
                     const isFull = booked >= cls.max_seats;
                     const isPastClass = isClassFinished(cls);
                     return (
@@ -198,14 +207,16 @@ export default function MyReservationModal({
                         </div>
 
                         <div className="flex flex-wrap gap-2 mt-3">
-                          <button
-                            type="button"
-                            onClick={() => setViewMembersFor(cls)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 min-h-[40px]"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                            ดูรายชื่อ ({booked})
-                          </button>
+                          {canViewParticipants && (
+                            <button
+                              type="button"
+                              onClick={() => setViewMembersFor(cls)}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 min-h-[40px]"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                              ดูรายชื่อ ({booked})
+                            </button>
+                          )}
                           <button
                             onClick={() => onChangeClass && onChangeClass(cls)}
                             disabled={isFull || isPastClass || !canModifyReservation}
@@ -253,6 +264,8 @@ export default function MyReservationModal({
           cls={viewMembersFor}
           course={course}
           members={getMembers(viewMembersFor.id)}
+          participantCount={seatCounts[viewMembersFor.id] ?? getMembers(viewMembersFor.id).length}
+          showParticipants={viewMembersFor.show_participant_list !== false}
           onClose={() => setViewMembersFor(null)}
         />
       )}

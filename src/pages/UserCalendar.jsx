@@ -9,6 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import { NavTab } from '../components/LayoutPrimitives';
 import { canManageCourse, getManageableParticipants } from '../utils/approvalScope';
 import { isClassFinished } from '../utils/courseStatus';
+import { fetchClassSeatCounts } from '../utils/reservationData';
 
 export default function UserCalendar() {
   const { employee, isAdmin, signOut } = useAuth();
@@ -61,11 +62,7 @@ export default function UserCalendar() {
       setAllEmployeesList(employeesData || []);
 
       const allRes = reservationsData || [];
-
-      const seatCounts = {};
-      allRes.forEach(r => {
-        seatCounts[r.class_id] = (seatCounts[r.class_id] || 0) + 1;
-      });
+      const seatCounts = await fetchClassSeatCounts(allRes);
 
       setRawCourses(courses);
       setRawClasses(classes);
@@ -470,7 +467,7 @@ export default function UserCalendar() {
                       </div>
                       <div className="p-6 flex-1 flex flex-col justify-center relative">
                         <div className={`absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center text-sm font-medium ${item.isFinished ? 'text-gray-500' : 'text-blue-600'}`}>
-                          ดูรายละเอียดและเพื่อนร่วมคลาส <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          {rawClasses[item.classId]?.show_participant_list !== false ? 'ดูรายละเอียดและเพื่อนร่วมคลาส' : 'ดูรายละเอียดคลาส'} <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">{item.courseTitle}</h3>
                         <p className="text-sm text-gray-500 mt-1">{item.className}</p>
@@ -502,6 +499,7 @@ export default function UserCalendar() {
           course={selectedClassDetails.course}
           currentCls={selectedClassDetails.currentCls}
           reservations={rawReservations}
+          seatCounts={rawSeatCounts}
           allEmployees={allEmployees}
           onChangeClass={(newCls) => handleChangeClass(newCls)}
           onCancel={handleCancelBook}
@@ -516,6 +514,8 @@ export default function UserCalendar() {
           cls={viewClassMembers.cls}
           course={viewClassMembers.course}
           members={viewClassMembers.members}
+          participantCount={rawSeatCounts[viewClassMembers.cls.id] ?? viewClassMembers.members.length}
+          showParticipants={viewClassMembers.cls.show_participant_list !== false}
           onClose={() => setViewClassMembers(null)}
         />
       )}

@@ -10,6 +10,7 @@ import { canManageCourse, getManageableParticipants } from '../utils/approvalSco
 import { normalizeUrl } from '../utils/url';
 import MyReservationModal from '../components/MyReservationModal';
 import { getClosingSortValue, isClassFinished, isCourseFinished } from '../utils/courseStatus';
+import { fetchClassSeatCounts } from '../utils/reservationData';
 
 // ─── Countdown Hook ───────────────────────────────────────────────────────────
 function useCountdown(closingDate, closingTime) {
@@ -69,7 +70,7 @@ function CountdownBar({ closingDate, closingTime }) {
 }
 
 // ─── Class Members Modal (Feature 1) ─────────────────────────────────────────
-function ClassMembersModal({ cls, course, members, onClose }) {
+function ClassMembersModal({ cls, course, members, participantCount = members.length, showParticipants = true, onClose }) {
   if (!cls) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -120,9 +121,13 @@ function ClassMembersModal({ cls, course, members, onClose }) {
           {/* รายชื่อสมาชิก */}
           <div>
             <p className="text-sm font-bold text-gray-900 mb-3">
-              รายชื่อผู้เข้าร่วม ({members.length} คน)
+              {showParticipants ? `รายชื่อผู้เข้าร่วม (${members.length} คน)` : `ผู้เข้าร่วม ${participantCount} คน`}
             </p>
-            {members.length === 0 ? (
+            {!showParticipants ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                ผู้จัดหลักสูตรตั้งค่าไม่เปิดเผยรายชื่อผู้เข้าร่วมสำหรับคลาสนี้
+              </div>
+            ) : members.length === 0 ? (
               <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center border">
                 ยังไม่มีผู้ลงทะเบียนในคลาสนี้
               </p>
@@ -206,8 +211,9 @@ export default function EmployeePortal() {
           supabase.rpc('get_employees_list')   // ดึงผ่าน RPC — email ถูกปกปิดสำหรับ non-admin
         ]);
 
-        const { counts, bookings } = calcSeatCounts(reservationsData || [], emp.id);
-        setSeatCounts(counts);
+        const { bookings } = calcSeatCounts(reservationsData || [], emp.id);
+        const aggregateCounts = await fetchClassSeatCounts(reservationsData || []);
+        setSeatCounts(aggregateCounts);
         setBookedState(bookings);
         setAllEmployees(employeesData || []);
         setAllReservations((reservationsData || []).filter(r => !r.is_deleted));
@@ -262,8 +268,9 @@ export default function EmployeePortal() {
         async () => {
           const { data } = await supabase.from('reservations').select('*');
           if (data) {
-            const { counts, bookings } = calcSeatCounts(data, employee.id);
-            setSeatCounts(counts);
+            const { bookings } = calcSeatCounts(data, employee.id);
+            const aggregateCounts = await fetchClassSeatCounts(data);
+            setSeatCounts(aggregateCounts);
             setBookedState(bookings);
             setAllReservations(data.filter(r => !r.is_deleted));
           }
@@ -277,6 +284,17 @@ export default function EmployeePortal() {
       channelRef.current = null;
     };
   }, [employee]);
+
+  // RLS อาจซ่อน row ของผู้เข้าร่วมคนอื่น จึงรีเฟรชเฉพาะ aggregate count เป็นระยะ
+  // เพื่อให้สถานะที่นั่งยังแม่นยำโดยไม่เปิดเผยตัวตน
+  useEffect(() => {
+    if (!employee) return undefined;
+    const timer = setInterval(async () => {
+      const aggregateCounts = await fetchClassSeatCounts(allReservations);
+      setSeatCounts(aggregateCounts);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [employee, allReservations]);
 
   const isCourseClosed = (course) => {
     if (!course.closing_date || !course.closing_time) return false;
@@ -787,14 +805,16 @@ export default function EmployeePortal() {
                           )}
                         </div>
 
-                        {/* ปุ่ม View Members */}
-                        <button
-                          onClick={() => setViewMembersClass(cls)}
-                          className="flex items-center justify-center gap-1.5 py-2 mb-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors min-h-[40px]"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                          ดูรายชื่อ ({bookedSeats})
-                        </button>
+                        {/* ปุ่ม View Members — แสดงเฉพาะคลาสที่ Admin อนุญาต */}
+                        {cls.show_participant_list !== false && (
+                          <button
+                            onClick={() => setViewMembersClass(cls)}
+                            className="flex items-center justify-center gap-1.5 py-2 mb-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors min-h-[40px]"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            ดูรายชื่อ ({bookedSeats})
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleBook(selectedCourse, cls)}
@@ -819,6 +839,8 @@ export default function EmployeePortal() {
           cls={viewMembersClass}
           course={selectedCourse}
           members={getClassMembers(viewMembersClass.id)}
+          participantCount={seatCounts[viewMembersClass.id] ?? getClassMembers(viewMembersClass.id).length}
+          showParticipants={viewMembersClass.show_participant_list !== false}
           onClose={() => setViewMembersClass(null)}
         />
       )}
@@ -829,6 +851,8 @@ export default function EmployeePortal() {
           cls={viewMembersInfo.cls}
           course={viewMembersInfo.course}
           members={getClassMembers(viewMembersInfo.cls.id)}
+          participantCount={seatCounts[viewMembersInfo.cls.id] ?? getClassMembers(viewMembersInfo.cls.id).length}
+          showParticipants={viewMembersInfo.cls.show_participant_list !== false}
           onClose={() => setViewMembersInfo(null)}
         />
       )}
@@ -844,6 +868,7 @@ export default function EmployeePortal() {
             course={myReservationFor}
             currentCls={currentCls}
             reservations={allReservations}
+            seatCounts={seatCounts}
             allEmployees={allEmployees}
             onChangeClass={(newCls) => handleChangeClassInternal(myReservationFor, currentCls.id, newCls)}
             onCancel={() => handleCancelBook(myReservationFor.id)}
